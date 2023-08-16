@@ -5677,11 +5677,11 @@ func CronParseNext(fromTime time.Time, spec string) (t time.Time, err error) {
 			err = fmt.Errorf("failed parsing cron expression: %q", spec)
 		}
 	}()
-	e, err := cronexpr.Parse(spec)
+	exp, err := cronexpr.Parse(spec)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("failed parsing cron expression: %s: %v", spec, err)
 	}
-	return e.Next(fromTime), nil
+	return exp.Next(fromTime), nil
 }
 
 // Next returns the closest time instant matching the spec that is after the
