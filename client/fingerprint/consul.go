@@ -15,11 +15,6 @@ import (
 	agentconsul "github.com/hashicorp/nomad/command/agent/consul"
 )
 
-const (
-	consulAvailable   = "available"
-	consulUnavailable = "unavailable"
-)
-
 var (
 	// consulGRPCPortChangeVersion is the Consul version which made a breaking
 	// change to the way gRPC API listeners are created. This means Nomad must
@@ -30,10 +25,16 @@ var (
 
 // ConsulFingerprint is used to fingerprint for Consul
 type ConsulFingerprint struct {
-	logger     log.Logger
-	client     *consulapi.Client
-	lastState  string
-	extractors map[string]consulExtractor
+	logger      log.Logger
+	client      *consulapi.Client
+	isAvailable bool
+	extractors  map[string]consulExtractor
+}
+
+type consulFingerprintState struct {
+	client      *consulapi.Client
+	isAvailable bool
+	nextCheck   time.Time
 }
 
 // consulExtractor is used to parse out one attribute from consulInfo. Returns
@@ -43,8 +44,8 @@ type consulExtractor func(agentconsul.Self) (string, bool)
 // NewConsulFingerprint is used to create a Consul fingerprint
 func NewConsulFingerprint(logger log.Logger) Fingerprint {
 	return &ConsulFingerprint{
-		logger:    logger.Named("consul"),
-		lastState: consulUnavailable,
+		logger:      logger.Named("consul"),
+		isAvailable: false,
 	}
 }
 
@@ -75,11 +76,11 @@ func (f *ConsulFingerprint) Fingerprint(req *FingerprintRequest, resp *Fingerpri
 	f.link(resp)
 
 	// indicate Consul is now available
-	if f.lastState == consulUnavailable {
+	if !f.isAvailable {
 		f.logger.Info("consul agent is available")
 	}
 
-	f.lastState = consulAvailable
+	f.isAvailable = true
 	resp.Detected = true
 	return nil
 }
@@ -124,10 +125,10 @@ func (f *ConsulFingerprint) query(resp *FingerprintResponse) agentconsul.Self {
 	info, err := f.client.Agent().Self()
 	if err != nil {
 		// indicate consul no longer available
-		if f.lastState == consulAvailable {
+		if f.isAvailable {
 			f.logger.Info("consul agent is unavailable")
 		}
-		f.lastState = consulUnavailable
+		f.isAvailable = false
 		return nil
 	}
 	return info
